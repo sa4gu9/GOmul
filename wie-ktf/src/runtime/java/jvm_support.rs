@@ -1140,7 +1140,10 @@ mod test {
                     .fields()?
                     .into_iter()
                     .find(|field| {
-                        field.matches_name(name, descriptor).unwrap() && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static
+                        let full_name = field.name().unwrap();
+                        full_name.name == name
+                            && full_name.descriptor == descriptor
+                            && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static
                     })
                     .map(|field| field.ptr_raw);
                 assert_eq!(class.field(name, descriptor, is_static)?.map(|field| field.ptr_raw), expected);

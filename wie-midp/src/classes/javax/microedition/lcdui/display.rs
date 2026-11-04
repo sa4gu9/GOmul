@@ -916,7 +916,7 @@ impl Display {
                 screen.paint(&*image);
             }
         }
-        jvm.collect_garbage()?;
+        jvm.collect_garbage_if_grown()?;
 
         Ok(())
     }

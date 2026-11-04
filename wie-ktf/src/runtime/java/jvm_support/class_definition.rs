@@ -8,7 +8,10 @@ use core::{
 use jvm::{ClassDefinition, ClassInstance, Field, JavaType, JavaValue, Jvm, Method, Result as JvmResult};
 use jvm_class_proto::JavaClassProto;
 use jvm_types::{ClassAccessFlags, FieldAccessFlags, MethodAccessFlags};
-use wipi_types::ktf::java::{JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor};
+use wipi_types::ktf::java::{
+    JavaClass as RawJavaClass, JavaClassDescriptor as RawJavaClassDescriptor, JavaFieldDefinition as RawJavaField,
+    JavaMethodDefinition as RawJavaMethod,
+};
 
 use wie_core_arm::{Allocator, ArmCore};
 use wie_jvm_support::native::NativeJavaValueCodec;
@@ -19,7 +22,10 @@ use wie_util::{
 
 use crate::runtime::java::JavaSvcFunctions;
 
-use super::{KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, value::JavaValueCodec, vtable::JavaVtable};
+use super::{
+    KtfJvmWord, Result, class_instance::JavaClassInstance, field::JavaField, method::JavaMethod, name::JavaFullName, value::JavaValueCodec,
+    vtable::JavaVtable,
+};
 
 #[derive(Clone)]
 pub struct JavaClassDefinition {
@@ -242,11 +248,20 @@ impl JavaClassDefinition {
     }
 
     pub fn method(&self, name: &str, descriptor: &str, is_static: bool) -> Result<Option<JavaMethod>> {
-        let methods = self.methods()?;
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let class_descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
+        if class_descriptor.ptr_methods == 0 {
+            return Ok(None);
+        }
 
-        for method in methods {
-            if method.matches_name(name, descriptor)? && method.access_flags().contains(MethodAccessFlags::STATIC) == is_static {
-                return Ok(Some(method));
+        // Read the whole table first so a malformed tail still faults, then read each method record once.
+        for ptr_method in read_null_terminated_table(&self.core, class_descriptor.ptr_methods)? {
+            let method: RawJavaMethod = read_generic(&self.core, ptr_method)?;
+            if method.ptr_class == self.ptr_raw
+                && MethodAccessFlags::from_bits_truncate(method.access_flags as _).contains(MethodAccessFlags::STATIC) == is_static
+                && JavaFullName::matches(&self.core, method.ptr_name, name, descriptor)?
+            {
+                return Ok(Some(JavaMethod::from_raw(ptr_method, &self.core)));
             }
         }
 
@@ -254,11 +269,19 @@ impl JavaClassDefinition {
     }
 
     pub fn field(&self, name: &str, descriptor: &str, is_static: bool) -> Result<Option<JavaField>> {
-        let fields = self.fields()?;
+        let raw: RawJavaClass = read_generic(&self.core, self.ptr_raw)?;
+        let class_descriptor: RawJavaClassDescriptor = read_generic(&self.core, raw.ptr_descriptor)?;
+        if class_descriptor.ptr_fields_or_element_type == 0 || self.name()?.starts_with("[") {
+            return Ok(None);
+        }
 
-        for field in fields {
-            if field.matches_name(name, descriptor)? && field.access_flags().contains(FieldAccessFlags::STATIC) == is_static {
-                return Ok(Some(field));
+        // Read the whole table first so a malformed tail still faults, then read each field record once.
+        for ptr_field in read_null_terminated_table(&self.core, class_descriptor.ptr_fields_or_element_type)? {
+            let field: RawJavaField = read_generic(&self.core, ptr_field)?;
+            if FieldAccessFlags::from_bits_truncate(field.access_flags as _).contains(FieldAccessFlags::STATIC) == is_static
+                && JavaFullName::matches(&self.core, field.ptr_name, name, descriptor)?
+            {
+                return Ok(Some(JavaField::from_raw(ptr_field, &self.core)));
             }
         }
 

@@ -113,11 +113,6 @@ impl JavaMethod {
         JavaFullName::from_ptr(&self.core, raw.ptr_name)
     }
 
-    pub fn matches_name(&self, name: &str, descriptor: &str) -> Result<bool> {
-        let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
-        JavaFullName::matches(&self.core, raw.ptr_name, name, descriptor)
-    }
-
     pub async fn run(&self, args: Box<[JavaValue]>) -> Result<JavaValue> {
         let raw: RawJavaMethod = read_generic(&self.core, self.ptr_raw)?;
         let return_type = JavaType::parse(&self.descriptor()).as_method().1.clone();

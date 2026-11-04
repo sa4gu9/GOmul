@@ -2,7 +2,7 @@ use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
 
 use wie_core_arm::ArmCore;
-use wie_util::{read_generic, read_null_terminated_string_bytes};
+use wie_util::{ByteRead, read_generic, read_null_terminated_string_bytes};
 
 use super::Result;
 
@@ -17,13 +17,33 @@ impl JavaFullName {
     // Lookup scans need equality, not separately allocated name/descriptor strings.
     // Read guest bytes each time so modified metadata stays authoritative.
     pub fn matches(core: &ArmCore, ptr: u32, name: &str, descriptor: &str) -> Result<bool> {
+        // Fast path: one bounded read of `tag descriptor '+' name terminator` compared in place.
+        let mut buffer = [0u8; 128];
+        let (descriptor, name) = (descriptor.as_bytes(), name.as_bytes());
+        let length = descriptor.len() + name.len() + 3;
+        if length <= buffer.len() {
+            let stored = &mut buffer[..length];
+            if core.read_bytes(ptr, stored).ok() == Some(length) {
+                let name_start = descriptor.len() + 2;
+                let terminator = stored[length - 1];
+                return Ok(&stored[1..name_start - 1] == descriptor
+                    && stored[name_start - 1] == b'+'
+                    && &stored[name_start..length - 1] == name
+                    && (terminator == 0 || terminator == b'+'));
+            }
+        }
+        Self::matches_slow(core, ptr, name, descriptor)
+    }
+
+    // Bytewise path for names too long for the buffer or stored next to unmapped memory.
+    fn matches_slow(core: &ArmCore, ptr: u32, name: &[u8], descriptor: &[u8]) -> Result<bool> {
         let _: u8 = read_generic(core, ptr)?;
         let value = read_null_terminated_string_bytes(core, ptr + 1)?;
         let value = String::from_utf8(value).unwrap();
         let mut values = value.split('+');
         let stored_descriptor = values.next().unwrap();
         let stored_name = values.next().unwrap();
-        Ok(stored_name == name && stored_descriptor == descriptor)
+        Ok(stored_name.as_bytes() == name && stored_descriptor.as_bytes() == descriptor)
     }
 
     pub fn from_ptr(core: &ArmCore, ptr: u32) -> Result<Self> {

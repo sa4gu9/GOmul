@@ -7,7 +7,7 @@ use core::{
     future::{Future, poll_fn},
     iter,
     pin::pin,
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     task::Poll,
 };
 
@@ -52,6 +52,7 @@ struct JvmInner {
     get_current_thread_id: Box<dyn Fn() -> u64 + Sync + Send>,
     bootstrap_class_loader: Box<dyn BootstrapClassLoader>,
     bootstrapping: AtomicBool,
+    gc_threshold: AtomicUsize,
 }
 
 #[derive(Clone)]
@@ -78,6 +79,7 @@ impl Jvm {
                 string_pool: RwLock::new(BTreeMap::new()),
                 monitors: RwLock::new(BTreeMap::new()),
                 get_current_thread_id: Box::new(get_current_thread_id),
+                gc_threshold: AtomicUsize::new(0),
                 bootstrap_class_loader: Box::new(bootstrap_class_loader),
                 bootstrapping: AtomicBool::new(true),
             }),
@@ -1035,6 +1037,19 @@ impl Jvm {
     /// The callback must not re-enter the JVM or change guest state.
     pub fn set_native_root_provider(&self, provider: impl Fn() -> Option<Vec<usize>> + Send + Sync + 'static) {
         *self.inner.native_roots.write() = Some(Box::new(provider));
+    }
+
+    /// Collects only after the object count has grown past the previous survivors,
+    /// so per-frame callers do not rescan an unchanged heap every frame.
+    pub fn collect_garbage_if_grown(&self) -> Result<usize> {
+        if self.inner.all_objects.read().len() < self.inner.gc_threshold.load(Ordering::Relaxed) {
+            return Ok(0);
+        }
+        let collected = self.collect_garbage()?;
+        let survivors = self.inner.all_objects.read().len();
+        self.inner.gc_threshold.store(survivors + survivors / 8 + 64, Ordering::Relaxed);
+
+        Ok(collected)
     }
 
     pub fn collect_garbage(&self) -> Result<usize> {
