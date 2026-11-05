@@ -9,6 +9,7 @@ GOmul은 **Inseok Lee(dlunch)와 기여자들의 [WIE](https://github.com/dlunch
 | arm32_cpu | Sean Purcell | `vendor/arm32_cpu/LICENSE` (MIT) |
 | RustJava JVM | Inseok Lee | `vendor/jvm/LICENSE` (MIT) |
 | RustJava runtime | Inseok Lee | `vendor/rustjava-runtime/LICENSE` (MIT) |
+| smaf-player 0.1.2 ([dlunch/smaf](https://github.com/dlunch/smaf)) | Inseok Lee | `vendor/smaf-player/LICENSE` (MIT), ADPCM 니블 순서 수정 |
 | NeoDunggeunmo 글꼴 | 해당 프로젝트 저작권자 | `wie-web/public/licenses/NeoDunggeunmo-OFL.txt` (SIL OFL 1.1) |
 | GeneralUser GS 사운드폰트 | 해당 자산 저작권자 | `wie-web/public/licenses/GeneralUser-GS-LICENSE.txt` (별도 배포 조건) |
 | Gradle wrapper | Gradle 기여자 | 소스 헤더 및 [Apache-2.0](https://github.com/gradle/gradle/blob/master/LICENSE) |

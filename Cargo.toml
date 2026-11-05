@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-exclude = ["vendor/arm32_cpu"]
+exclude = ["vendor/arm32_cpu", "vendor/smaf-player"]
 
 members = [
     "vendor/rustjava-runtime",
@@ -27,6 +27,7 @@ default-members = ["."]
 rustjava-runtime = { path = "vendor/rustjava-runtime" }
 jvm = { path = "vendor/jvm" }
 arm32_cpu = { path = "vendor/arm32_cpu" }
+smaf-player = { path = "vendor/smaf-player" }
 
 [profile.dev.package.wie-core-arm]
 opt-level = 1
