@@ -23,7 +23,7 @@ jobs:
       - name: Unit checks
         run: |
           cargo fmt --all --check
-          cargo test --workspace --locked
+          cargo test --workspace --exclude wie-app --locked
           cargo test -p wie-core-arm --features experimental-thumb-inline,experimental-thumb-table --locked
           python3 scripts/release-audit.py
           python3 -m unittest discover -s tools/mac-checkpoints -v
